@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RavePulse 🎵
 
-## Getting Started
+Real-time EDM event recommendations powered by your Spotify music taste.
 
-First, run the development server:
+## Features
 
+- 🎵 **Spotify Integration**: Analyzes your recent plays and favorite artists
+- 📍 **Location-Based**: Auto-detect or manually select your city
+- 🎯 **Smart Recommendations**: 70% weight on recent plays + 30% on long-term favorites
+- 🗺️ **Dual Views**: List view by dates or interactive map view
+- 📅 **Event Tracking**: Track attended events and wishlist future ones
+- 🎫 **Direct Ticketing**: Links to purchase tickets for each event
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
+- **APIs**: Spotify Web API, EDMTrain API, Google Maps
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Spotify OAuth 2.0
+
+## Setup
+
+1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/ravepulse.git
+cd ravepulse
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables
+```bash
+cp .env.local.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Add your API credentials to `.env.local`:
+   - **Spotify**: Create an app at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   - **EDMTrain**: Get API key from [EDMTrain](https://edmtrain.com/api)
+   - **Google Maps**: Get API key from [Google Cloud Console](https://console.cloud.google.com)
+   - **Supabase**: Create a project at [Supabase](https://supabase.com)
 
-## Learn More
+5. Run the development server
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API Configuration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Spotify App Settings
+- Redirect URI: `http://localhost:3000/api/auth/callback`
+- Required scopes: `user-read-recently-played`, `user-top-read`, `user-read-private`, `user-read-email`
 
-## Deploy on Vercel
+### Google Maps API
+- Enable: Maps JavaScript API, Places API, Geocoding API
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+ravepulse/
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   ├── dashboard/         # Main app dashboard
+│   └── page.tsx          # Landing page
+├── lib/                   # Utility functions
+│   ├── spotify.ts        # Spotify API client
+│   ├── edmtrain.ts       # EDMTrain API client
+│   └── types.ts          # TypeScript types
+├── components/            # React components
+└── public/               # Static assets
+```
+
+## Contributing
+
+Pull requests are welcome! For major changes, please open an issue first.
+
+## License
+
+MIT
