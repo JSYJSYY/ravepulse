@@ -2,18 +2,52 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Map, List, Heart, Clock, Settings, MapPin } from 'lucide-react';
+import { Calendar, Map, List, Heart, Clock, Settings, MapPin, LogOut, Zap, Shield, Cpu, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
+import MusicTasteAnalysis from '@/components/MusicTasteAnalysis';
+import EventsList from '@/components/EventsList';
+import LocationSelector from '@/components/LocationSelector';
+import { getAttendanceStats } from '@/lib/attendance';
+import { getWishlistStats } from '@/lib/wishlist';
+import dynamic from 'next/dynamic';
+
+// Dynamic import for map to avoid SSR issues
+const EventsMap = dynamic(() => import('@/components/EventsMap'), { 
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+    </div>
+  )
+});
 
 export default function Dashboard() {
   const router = useRouter();
   const [activeView, setActiveView] = useState<'list' | 'map'>('list');
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [userLocation, setUserLocation] = useState<{ city: string; state: string }>({ 
+    city: 'New York', 
+    state: 'NY' 
+  });
+  const [listeningData, setListeningData] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<any>(null);
+  const [wishlistStats, setWishlistStats] = useState<any>(null);
+  const [filterThisWeek, setFilterThisWeek] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
     checkAuth();
+    // Fetch listening data
+    fetchListeningData();
+    // Load attendance stats
+    loadAttendanceStats();
   }, []);
+
+  useEffect(() => {
+    // Fetch events when location changes
+    fetchEvents();
+  }, [userLocation]);
 
   const checkAuth = async () => {
     try {
@@ -30,56 +64,202 @@ export default function Dashboard() {
     }
   };
 
+  const fetchListeningData = async () => {
+    try {
+      const response = await fetch('/api/spotify/listening-data');
+      if (response.ok) {
+        const data = await response.json();
+        setListeningData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching listening data:', error);
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const params = new URLSearchParams({
+        city: userLocation.city,
+        state: userLocation.state,
+      });
+      const response = await fetch(`/api/events?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data.events || []);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    }
+  };
+
+  const handleLocationChange = (city: string, state: string) => {
+    setUserLocation({ city, state });
+    toast.success(`Location updated to ${city}, ${state}`);
+  };
+
+  const loadAttendanceStats = () => {
+    const stats = getAttendanceStats();
+    setAttendanceStats(stats);
+    const wishlist = getWishlistStats();
+    setWishlistStats(wishlist);
+  };
+
+  const getThisWeekEvents = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    
+    // Calculate this Monday (start of week)
+    const monday = new Date(now);
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday is 0, so we need to adjust
+    monday.setDate(now.getDate() - daysFromMonday);
+    monday.setHours(0, 0, 0, 0);
+    
+    // Calculate this Sunday (end of week)
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    return events.filter(event => {
+      const eventDate = new Date(event.date);
+      return eventDate >= monday && eventDate <= sunday;
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
+
+  const sortEventsByRecommendation = (eventsToSort: any[]) => {
+    return [...eventsToSort].sort((a, b) => {
+      // Calculate match scores
+      const scoreA = getEventMatchScore(a);
+      const scoreB = getEventMatchScore(b);
+      
+      // If both have scores, sort by score (highest first)
+      if (scoreA > 0 && scoreB > 0) {
+        return scoreB - scoreA;
+      }
+      
+      // If only one has a score, it comes first
+      if (scoreA > 0) return -1;
+      if (scoreB > 0) return 1;
+      
+      // Otherwise sort by date (earliest first)
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  };
+
+  const getEventMatchScore = (event: any) => {
+    if (!listeningData?.edmGenres?.recentlyPlayed?.length) return 0;
+    
+    let score = 0;
+    const eventName = event.name.toLowerCase();
+    const artistNames = event.artists.map((a: any) => a.name.toLowerCase()).join(' ');
+    const eventGenres = (event.genres || []).map((g: string) => g.toLowerCase()).join(' ');
+    
+    // More precise matching - check for exact genre matches first
+    listeningData.edmGenres.recentlyPlayed.forEach(({ genre, count }: any) => {
+      const userGenre = genre.toLowerCase();
+      
+      // Check for exact genre match in event genres
+      if (eventGenres.includes(userGenre)) {
+        score += count * 2; // Double weight for exact genre match
+        return;
+      }
+      
+      // Check for artist name match
+      if (artistNames.includes(userGenre)) {
+        score += count * 1.5; // 1.5x weight for artist match
+        return;
+      }
+      
+      // Only do partial matching for specific genre keywords, not common words
+      const significantKeywords = ['house', 'techno', 'trance', 'dubstep', 'bass', 'drum', 'trap', 'hardstyle', 'progressive', 'deep', 'future'];
+      const genreWords = userGenre.split(' ').filter(word => significantKeywords.includes(word));
+      
+      genreWords.forEach((keyword: string) => {
+        if (keyword.length > 3 && eventGenres.includes(keyword)) {
+          score += count * 0.5; // Half weight for partial keyword match
+        }
+      });
+    });
+    
+    // Only recommend if score is above a threshold
+    return score >= 3 ? score : 0;
+  };
+
+  const displayedEvents = filterThisWeek 
+    ? getThisWeekEvents() // Keep date order for "This Week" view
+    : sortEventsByRecommendation(events);
+
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Cyberpunk Background Effects */}
+      <div className="absolute inset-0 tech-pattern opacity-20"></div>
+      <div className="scan-line"></div>
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
       {/* Navigation Bar */}
-      <nav className="bg-gray-900 border-b border-gray-800">
+      <nav className="bg-black/80 backdrop-blur-sm cyber-border border-b relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
-                RavePulse
+              <h1 className="text-2xl font-bold font-mono " style={{color: 'var(--cyber-cyan)'}}>
+                <span className="cyber-chrome">RAVE</span><span style={{color: 'var(--cyber-hot-pink)'}}>PULSE</span>
               </h1>
+              <div className="ml-4 text-xs font-mono" style={{color: 'var(--cyber-magenta)'}}>
+                {'>> PULSE INTERFACE ACTIVE'}
+              </div>
             </div>
             
             {/* View Toggle */}
             <div className="flex items-center space-x-4">
-              <div className="bg-gray-800 rounded-lg p-1 flex">
+              <div className="cyber-border bg-black/50 p-1 flex">
                 <button
                   onClick={() => setActiveView('list')}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2 font-mono flex items-center gap-2 transition-all transform hover:scale-105 ${
                     activeView === 'list' 
-                      ? 'bg-purple-600 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'cyber-hologram text-black' 
+                      : 'hover:bg-gray-800/50'
                   }`}
+                  style={{
+                    background: activeView === 'list' ? 'var(--cyber-gradient-1)' : 'transparent',
+                    color: activeView === 'list' ? 'black' : 'var(--cyber-cyan)',
+                    clipPath: activeView === 'list' ? 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)' : 'none'
+                  }}
                 >
                   <List className="w-4 h-4" />
-                  List
+                  DATA_LIST
                 </button>
                 <button
                   onClick={() => setActiveView('map')}
-                  className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2 font-mono flex items-center gap-2 transition-all transform hover:scale-105 ${
                     activeView === 'map' 
-                      ? 'bg-purple-600 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'cyber-hologram text-black' 
+                      : 'hover:bg-gray-800/50'
                   }`}
+                  style={{
+                    background: activeView === 'map' ? 'var(--cyber-gradient-2)' : 'transparent',
+                    color: activeView === 'map' ? 'black' : 'var(--cyber-hot-pink)',
+                    clipPath: activeView === 'map' ? 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)' : 'none'
+                  }}
                 >
                   <Map className="w-4 h-4" />
-                  Map
+                  GEO_MAP
                 </button>
               </div>
               
               {/* User Profile */}
               {userProfile && (
                 <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-300">
-                    {userProfile.display_name}
-                  </span>
-                  <img 
-                    src={userProfile.images?.[0]?.url || '/default-avatar.png'} 
-                    alt="Profile"
-                    className="w-8 h-8 rounded-full"
-                  />
+                  <div className="cyber-border px-3 py-1 bg-black/50">
+                    <span className="text-sm font-mono" style={{color: 'var(--cyber-neon-green)'}}>
+                      USER: {userProfile.display_name.toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => router.push('/api/auth/logout')}
+                    className="p-2 cyber-border hover:bg-red-500/20 transition-all transform hover:scale-110"
+                    style={{color: 'var(--cyber-hot-pink)'}}
+                    title="Disconnect Pulse Link"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
                 </div>
               )}
             </div>
@@ -90,57 +270,88 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar */}
-        <aside className="w-64 bg-gray-900 border-r border-gray-800 p-4">
-          <div className="space-y-6">
+        <aside className="w-64 bg-black/80 backdrop-blur-sm cyber-border border-r relative z-10">
+          <div className="p-4 space-y-6">
             {/* Location Selector */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                Location
+              <h3 className="text-sm font-mono font-bold uppercase tracking-wider mb-3" style={{color: 'var(--cyber-cyan)'}}>
+                <MapPin className="w-4 h-4 inline mr-2" />
+                GEO_LOCATION
               </h3>
-              <button className="w-full bg-gray-800 hover:bg-gray-700 rounded-lg px-4 py-2 text-left flex items-center gap-2 transition-colors">
-                <MapPin className="w-4 h-4 text-purple-400" />
-                <span>San Francisco, CA</span>
-              </button>
+              <div className="cyber-border bg-black/50 p-2">
+                <LocationSelector 
+                  currentLocation={userLocation}
+                  onLocationChange={handleLocationChange}
+                />
+              </div>
             </div>
 
             {/* Filters */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                Quick Filters
+              <h3 className="text-sm font-mono font-bold uppercase tracking-wider mb-3" style={{color: 'var(--cyber-hot-pink)'}}>
+                <Zap className="w-4 h-4 inline mr-2" />
+                PULSE_FILTERS
               </h3>
               <div className="space-y-2">
-                <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    setFilterThisWeek(!filterThisWeek);
+                    toast.success(filterThisWeek ? 'Showing all events' : 'Showing this week only');
+                  }}
+                  className={`w-full text-left px-4 py-2 cyber-border transition-all transform hover:scale-105 flex items-center gap-2 font-mono ${
+                    filterThisWeek ? 'cyber-hologram bg-cyan-500/20' : 'hover:bg-gray-800/50'
+                  }`}
+                  style={{
+                    color: filterThisWeek ? 'var(--cyber-cyan)' : 'var(--cyber-magenta)',
+                    clipPath: 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)'
+                  }}
+                >
                   <Calendar className="w-4 h-4" />
-                  This Weekend
+                  THIS_CYCLE
                 </button>
-                <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2">
+                <button 
+                  onClick={() => router.push('/wishlist')}
+                  className="w-full text-left px-4 py-2 cyber-border hover:bg-gray-800/50 transition-all transform hover:scale-105 flex items-center gap-2 font-mono"
+                  style={{
+                    color: 'var(--cyber-neon-green)',
+                    clipPath: 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)'
+                  }}
+                >
                   <Heart className="w-4 h-4" />
-                  Wishlist
+                  PRIORITY_LIST
                 </button>
-                <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2">
+                <button 
+                  onClick={() => router.push('/past-events')}
+                  className="w-full text-left px-4 py-2 cyber-border hover:bg-gray-800/50 transition-all transform hover:scale-105 flex items-center gap-2 font-mono"
+                  style={{
+                    color: 'var(--cyber-orange)',
+                    clipPath: 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)'
+                  }}
+                >
                   <Clock className="w-4 h-4" />
-                  Past Events
+                  ARCHIVE_DATA
                 </button>
               </div>
             </div>
 
             {/* Stats */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                Your Stats
+              <h3 className="text-sm font-mono font-bold uppercase tracking-wider mb-3" style={{color: 'var(--cyber-electric-blue)'}}>
+                <Activity className="w-4 h-4 inline mr-2" />
+                PULSE_STATS
               </h3>
-              <div className="bg-gray-800 rounded-lg p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Events Attended</span>
-                  <span className="font-semibold">0</span>
+              <div className="cyber-border bg-black/70 backdrop-blur-sm p-4 space-y-3 text-sm cyber-hologram">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono" style={{color: 'var(--cyber-magenta)'}}>&gt; EVENTS_ATTENDED</span>
+                  <span className="font-mono font-bold cyber-neon" style={{color: 'var(--cyber-cyan)'}}>{attendanceStats?.total || 0}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Wishlist</span>
-                  <span className="font-semibold">0</span>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono" style={{color: 'var(--cyber-magenta)'}}>&gt; PRIORITY_QUEUE</span>
+                  <span className="font-mono font-bold cyber-neon" style={{color: 'var(--cyber-neon-green)'}}>{wishlistStats?.total || 0}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Music Match</span>
-                  <span className="font-semibold text-green-400">--</span>
+                <div className="h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-3"></div>
+                <div className="text-xs font-mono text-center" style={{color: 'var(--cyber-hot-pink)'}}>
+                  STATUS: ONLINE
                 </div>
               </div>
             </div>
@@ -148,29 +359,75 @@ export default function Dashboard() {
         </aside>
 
         {/* Main View */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden relative">
           {activeView === 'list' ? (
-            <div className="h-full overflow-y-auto p-6">
+            <div className="h-full overflow-y-auto p-6 bg-black/50 backdrop-blur-sm">
               <div className="max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6">
-                  Recommended Events
-                </h2>
-                
-                {/* Loading State */}
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center gap-3 text-gray-400">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                    <span>Analyzing your music taste...</span>
+                {/* Music Taste Analysis - only show when not filtering */}
+                {!filterThisWeek && (
+                  <div className="mb-8">
+                    <MusicTasteAnalysis />
                   </div>
-                  <p className="text-sm text-gray-500 mt-4">
-                    We're fetching your Spotify data and matching it with upcoming EDM events
-                  </p>
+                )}
+                
+                {/* Events List */}
+                <div className="mt-8">
+                  <div className="cyber-border bg-black/50 p-4 mb-4">
+                    <h2 className="text-xl font-mono font-bold" style={{color: 'var(--cyber-hot-pink)'}}>
+                      {filterThisWeek ? '>> CURRENT_CYCLE_EVENTS' : '>> UPCOMING_EVENT_MATRIX'}
+                    </h2>
+                  </div>
+                  {filterThisWeek && displayedEvents.length === 0 ? (
+                    <div className="text-center py-8 cyber-border bg-black/50">
+                      <p className="font-mono" style={{color: 'var(--cyber-magenta)'}}>&gt; NO EVENTS IN CURRENT CYCLE</p>
+                      <button
+                        onClick={() => setFilterThisWeek(false)}
+                        className="mt-4 px-4 py-2 cyber-border font-mono transition-all transform hover:scale-105"
+                        style={{color: 'var(--cyber-cyan)', background: 'var(--cyber-gradient-1)', clipPath: 'polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%)'}}
+                      >
+                        ACCESS_ALL_EVENTS
+                      </button>
+                    </div>
+                  ) : (
+                    <EventsList 
+                      events={displayedEvents}
+                      edmGenres={listeningData?.edmGenres?.recentlyPlayed}
+                      recommendedEventIds={displayedEvents
+                        .filter(event => getEventMatchScore(event) > 0)
+                        .map(event => event.id)}
+                      onAttendanceChange={loadAttendanceStats}
+                    />
+                  )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="h-full bg-gray-900 flex items-center justify-center">
-              <p className="text-gray-400">Map view coming soon...</p>
+            <div className="h-full bg-black/50 backdrop-blur-sm">
+              <div className="cyber-border bg-black/70 p-4 m-4">
+                <h2 className="text-xl font-mono font-bold" style={{color: 'var(--cyber-electric-blue)'}}>
+                  &gt;&gt; GEOSPATIAL_EVENT_MATRIX
+                </h2>
+              </div>
+              <EventsMap 
+                events={displayedEvents}
+                onAttendanceChange={loadAttendanceStats}
+                center={(() => {
+                  const cityCoords = {
+                    'San Francisco': { lat: 37.7749, lng: -122.4194 },
+                    'Los Angeles': { lat: 34.0522, lng: -118.2437 },
+                    'New York': { lat: 40.7128, lng: -74.0060 },
+                    'Miami': { lat: 25.7617, lng: -80.1918 },
+                    'Chicago': { lat: 41.8781, lng: -87.6298 },
+                    'Seattle': { lat: 47.6062, lng: -122.3321 },
+                    'Denver': { lat: 39.7392, lng: -104.9903 },
+                    'Austin': { lat: 30.2672, lng: -97.7431 },
+                  };
+                  return cityCoords[userLocation.city] || { lat: 40.7128, lng: -74.0060 };
+                })()}
+                recommendedEventIds={displayedEvents
+                  .filter(event => getEventMatchScore(event) > 0)
+                  .map(event => event.id)}
+              />
             </div>
           )}
         </main>

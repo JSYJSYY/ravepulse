@@ -21,6 +21,7 @@ export const getAuthorizationUrl = () => {
     response_type: 'code',
     redirect_uri: SPOTIFY_REDIRECT_URI,
     scope: scopes,
+    show_dialog: 'true', // Force showing the authorization dialog every time
   });
 
   return `https://accounts.spotify.com/authorize?${params.toString()}`;

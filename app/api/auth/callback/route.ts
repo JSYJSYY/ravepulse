@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard`);
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/auth/success`);
   } catch (error) {
     console.error('Authentication error:', error);
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?error=authentication_failed`);

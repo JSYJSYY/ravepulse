@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Music, MapPin, Calendar, Sparkles } from 'lucide-react';
+import { Music, MapPin, Calendar, Sparkles, Zap, Shield, Cpu } from 'lucide-react';
+import CyberpunkFeatures from '@/components/CyberpunkFeatures';
 
 export default function Home() {
   const [pulseAnimation, setPulseAnimation] = useState(false);
+  const [matrixChars, setMatrixChars] = useState<string[]>([]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -14,72 +16,94 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    // Generate matrix characters for background
+    const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+    const matrixArray = Array.from({ length: 50 }, () => chars[Math.floor(Math.random() * chars.length)]);
+    setMatrixChars(matrixArray);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col relative overflow-hidden">
+      {/* Matrix Background */}
+      <div className="absolute inset-0 opacity-20">
+        {matrixChars.map((char, i) => (
+          <div
+            key={i}
+            className="matrix-character absolute text-xs"
+            style={{
+              left: `${(i * 2) % 100}%`,
+              animationDuration: `${Math.random() * 3 + 2}s`,
+              animationDelay: `${Math.random() * 2}s`
+            }}
+          >
+            {char}
+          </div>
+        ))}
+      </div>
+      
+      {/* Scan Line */}
+      <div className="scan-line"></div>
+      
+      {/* Circuit Board Background */}
+      <div className="absolute inset-0 tech-pattern opacity-30"></div>
       {/* Hero Section */}
-      <main className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
-        {/* Animated background elements */}
+      <main className="flex-1 flex flex-col items-center justify-center p-8 relative z-10">
+        {/* Cyberpunk Glow Effects */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-purple-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-pink-500 rounded-full blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
+          <div className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full blur-3xl opacity-30" style={{background: 'var(--cyber-gradient-1)'}}></div>
+          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full blur-3xl opacity-30 animation-delay-2000" style={{background: 'var(--cyber-gradient-2)'}}></div>
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-2xl opacity-20" style={{background: 'var(--cyber-cyan)'}}></div>
         </div>
 
         <div className="relative z-10 text-center max-w-4xl mx-auto">
           {/* Logo/Title */}
-          <div className="mb-8">
-            <h1 className="text-6xl md:text-8xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 text-transparent bg-clip-text animate-gradient">
-              RavePulse
+          <div className="mb-12">
+            <h1 className="text-6xl md:text-8xl font-bold mb-6  cyber-neon" style={{color: 'var(--cyber-cyan)'}}>
+              <span className="cyber-chrome">RAVE</span><span style={{color: 'var(--cyber-hot-pink)'}}>PULSE</span>
             </h1>
-            <p className="text-xl md:text-2xl text-gray-300 font-light">
-              Real-time EDM event recommendations powered by your music taste
-            </p>
+            <div className="cyber-border p-4 bg-black/50 backdrop-blur-sm">
+              <p className="text-xl md:text-2xl font-mono" style={{color: 'var(--cyber-cyan)'}}>
+                {'>> PULSE LINK ESTABLISHED'}
+              </p>
+              <p className="text-lg text-gray-300 font-mono mt-2">
+                Real-time EDM event recommendations powered by AI
+              </p>
+            </div>
           </div>
 
           {/* Connect with Spotify button */}
           <Link 
             href="/api/auth/login"
-            className={`inline-flex items-center gap-3 bg-green-500 hover:bg-green-600 text-black font-bold text-lg px-8 py-4 rounded-full transition-all transform hover:scale-105 shadow-lg ${
-              pulseAnimation ? 'animate-pulse' : ''
+            className={`inline-flex items-center gap-4 px-8 py-4 font-mono font-bold text-lg transition-all transform hover:scale-105 relative group cyber-hologram cyber-border ${
+              pulseAnimation ? 'cyber-neon' : ''
             }`}
+            style={{
+              background: 'var(--cyber-gradient-1)',
+              color: 'black',
+              clipPath: 'polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%)'
+            }}
           >
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-            </svg>
-            Connect with Spotify
+            <Zap className="w-6 h-6" />
+            <span className="relative z-10">INITIALIZE PULSE LINK</span>
+            <Shield className="w-6 h-6" />
           </Link>
 
           {/* Features */}
-          <div className="mt-16 grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transform hover:scale-105 transition-transform">
-              <Music className="w-8 h-8 mb-4 mx-auto text-purple-400" />
-              <h3 className="font-semibold mb-2">Music Taste Analysis</h3>
-              <p className="text-sm text-gray-400">Analyzes your recent plays and favorite artists</p>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transform hover:scale-105 transition-transform">
-              <Sparkles className="w-8 h-8 mb-4 mx-auto text-pink-400" />
-              <h3 className="font-semibold mb-2">Smart Recommendations</h3>
-              <p className="text-sm text-gray-400">70% recent + 30% all-time favorites</p>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transform hover:scale-105 transition-transform">
-              <MapPin className="w-8 h-8 mb-4 mx-auto text-cyan-400" />
-              <h3 className="font-semibold mb-2">Location Based</h3>
-              <p className="text-sm text-gray-400">Auto-detect or manually select your city</p>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 transform hover:scale-105 transition-transform">
-              <Calendar className="w-8 h-8 mb-4 mx-auto text-yellow-400" />
-              <h3 className="font-semibold mb-2">Event Tracking</h3>
-              <p className="text-sm text-gray-400">Track attended & wishlist future events</p>
-            </div>
+          <div className="mt-20">
+            <CyberpunkFeatures />
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 text-center p-8 text-gray-500 text-sm">
-        <p>Powered by Spotify Web API & EDMTrain</p>
+      <footer className="relative z-10 text-center p-8 cyber-border bg-black/50 backdrop-blur-sm">
+        <p className="font-mono" style={{color: 'var(--cyber-cyan)'}}>
+          &copy; 2077 RavePulse Neural Networks. All rights reserved.
+        </p>
+        <p className="text-xs font-mono mt-2" style={{color: 'var(--cyber-magenta)'}}>
+          Powered by Quantum AI • Pulse Link Technology
+        </p>
       </footer>
     </div>
   );
