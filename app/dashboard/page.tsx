@@ -147,14 +147,16 @@ export default function Dashboard() {
 
   const getEventMatchScore = (event: any) => {
     if (!listeningData?.edmGenres?.recentlyPlayed?.length) return 0;
+    if (!event || !event.name) return 0;
     
     let score = 0;
-    const eventName = event.name.toLowerCase();
-    const artistNames = event.artists.map((a: any) => a.name.toLowerCase()).join(' ');
-    const eventGenres = (event.genres || []).map((g: string) => g.toLowerCase()).join(' ');
+    const eventName = (event.name || '').toLowerCase();
+    const artistNames = (event.artists || []).map((a: any) => (a.name || '').toLowerCase()).join(' ');
+    const eventGenres = (event.genres || []).map((g: string) => (g || '').toLowerCase()).join(' ');
     
     // More precise matching - check for exact genre matches first
     listeningData.edmGenres.recentlyPlayed.forEach(({ genre, count }: any) => {
+      if (!genre) return;
       const userGenre = genre.toLowerCase();
       
       // Check for exact genre match in event genres
@@ -171,7 +173,7 @@ export default function Dashboard() {
       
       // Only do partial matching for specific genre keywords, not common words
       const significantKeywords = ['house', 'techno', 'trance', 'dubstep', 'bass', 'drum', 'trap', 'hardstyle', 'progressive', 'deep', 'future'];
-      const genreWords = userGenre.split(' ').filter(word => significantKeywords.includes(word));
+      const genreWords = userGenre.split(' ').filter((word: string) => significantKeywords.includes(word));
       
       genreWords.forEach((keyword: string) => {
         if (keyword.length > 3 && eventGenres.includes(keyword)) {
@@ -412,7 +414,7 @@ export default function Dashboard() {
                 events={displayedEvents}
                 onAttendanceChange={loadAttendanceStats}
                 center={(() => {
-                  const cityCoords = {
+                  const cityCoords: Record<string, { lat: number; lng: number }> = {
                     'San Francisco': { lat: 37.7749, lng: -122.4194 },
                     'Los Angeles': { lat: 34.0522, lng: -118.2437 },
                     'New York': { lat: 40.7128, lng: -74.0060 },

@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAccessToken, getUserProfile } from '@/lib/spotify';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-
-// Only create Supabase client if credentials are provided
-const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && 
-                 process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url' &&
-                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && 
-                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'your_supabase_anon_key'
-  ? createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
-  : null;
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -54,24 +42,8 @@ export async function GET(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
-    // Store user info in Supabase (optional - for persistence)
-    if (supabase) {
-      const { error: supabaseError } = await supabase
-        .from('users')
-        .upsert({
-          spotify_id: userProfile.id,
-          display_name: userProfile.display_name,
-          email: userProfile.email,
-          image_url: userProfile.images?.[0]?.url,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'spotify_id'
-        });
-
-      if (supabaseError) {
-        console.error('Supabase error:', supabaseError);
-      }
-    }
+    // User info is stored in cookies only
+    // In production, consider using a proper session management solution
 
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/auth/success`);
   } catch (error) {

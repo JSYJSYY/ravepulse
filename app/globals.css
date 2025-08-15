@@ -50,20 +50,21 @@ body::before {
   animation: background-drift 20s ease-in-out infinite;
   pointer-events: none;
   z-index: -1;
+  will-change: transform;
 }
 
 @keyframes background-drift {
   0%, 100% {
-    transform: translateX(0) translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   25% {
-    transform: translateX(-20px) translateY(-10px) scale(1.02);
+    transform: translate3d(-20px, -10px, 0) scale(1.02);
   }
   50% {
-    transform: translateX(10px) translateY(20px) scale(0.98);
+    transform: translate3d(10px, 20px, 0) scale(0.98);
   }
   75% {
-    transform: translateX(20px) translateY(-15px) scale(1.01);
+    transform: translate3d(20px, -15px, 0) scale(1.01);
   }
 }
 

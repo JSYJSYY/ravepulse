@@ -11,8 +11,8 @@ interface Event {
   id: string;
   name: string;
   date: string;
-  startTime: string;
-  endTime: string;
+  startTime: string | null;
+  endTime: string | null;
   venue: {
     name: string;
     address: string;
@@ -110,12 +110,12 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
     });
   };
 
-  const formatTime = (time: string) => {
-    if (!time) return '';
+  const formatTime = (time: string | null) => {
+    if (!time) return 'Time TBA';
     const [hours, minutes] = time.split(':');
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
+    const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
@@ -231,7 +231,7 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
                 <Clock className="w-4 h-4" />
                 <span>
                   {formatTime(event.startTime)}
-                  {event.endTime && ` - ${formatTime(event.endTime)}`}
+                  {event.endTime && event.startTime && ` - ${formatTime(event.endTime)}`}
                 </span>
               </div>
             </div>
@@ -262,7 +262,17 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
                 <h3 className="text-sm font-semibold cyber-text-secondary mb-3">Genres</h3>
                 <div className="flex flex-wrap gap-2">
                   {event.genres.map((genre, idx) => (
-                    <span key={idx} className="cyber-badge">
+                    <span 
+                      key={idx} 
+                      className={`cyber-badge ${
+                        genre.toLowerCase().includes('house') ? 'bg-purple-900/30 border-purple-500/50' :
+                        genre.toLowerCase().includes('techno') ? 'bg-blue-900/30 border-blue-500/50' :
+                        genre.toLowerCase().includes('bass') || genre.toLowerCase().includes('dubstep') ? 'bg-green-900/30 border-green-500/50' :
+                        genre.toLowerCase().includes('trance') ? 'bg-pink-900/30 border-pink-500/50' :
+                        genre.toLowerCase().includes('drum') ? 'bg-orange-900/30 border-orange-500/50' :
+                        ''
+                      }`}
+                    >
                       {genre}
                     </span>
                   ))}

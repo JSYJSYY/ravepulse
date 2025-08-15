@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Music, MapPin, Calendar, Sparkles, Zap, Shield, Cpu } from 'lucide-react';
-import CyberpunkFeatures from '@/components/CyberpunkFeatures';
 
 export default function Home() {
   const [pulseAnimation, setPulseAnimation] = useState(false);
@@ -17,24 +16,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Generate matrix characters for background
+    // Generate matrix characters for background - reduced for performance
     const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-    const matrixArray = Array.from({ length: 50 }, () => chars[Math.floor(Math.random() * chars.length)]);
+    const matrixArray = Array.from({ length: 15 }, () => chars[Math.floor(Math.random() * chars.length)]);
     setMatrixChars(matrixArray);
   }, []);
 
   return (
     <div className="min-h-screen bg-black flex flex-col relative overflow-hidden">
-      {/* Matrix Background */}
-      <div className="absolute inset-0 opacity-20">
+      {/* Matrix Background - Optimized */}
+      <div className="absolute inset-0 opacity-10">
         {matrixChars.map((char, i) => (
           <div
             key={i}
             className="matrix-character absolute text-xs"
             style={{
-              left: `${(i * 2) % 100}%`,
-              animationDuration: `${Math.random() * 3 + 2}s`,
-              animationDelay: `${Math.random() * 2}s`
+              left: `${(i * 6.5) % 100}%`,
+              animationDuration: `${3 + (i % 3)}s`,
+              animationDelay: `${i * 0.1}s`
             }}
           >
             {char}
@@ -90,8 +89,22 @@ export default function Home() {
           </Link>
 
           {/* Features */}
-          <div className="mt-20">
-            <CyberpunkFeatures />
+          <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="cyber-card p-6 text-center">
+              <Music className="w-10 h-10 mx-auto mb-4" style={{color: 'var(--cyber-hot-pink)'}} />
+              <h3 className="font-bold mb-2 text-lg">AI Music Analysis</h3>
+              <p className="text-sm text-gray-400">Analyzes your Spotify listening patterns to recommend perfect events</p>
+            </div>
+            <div className="cyber-card p-6 text-center">
+              <MapPin className="w-10 h-10 mx-auto mb-4" style={{color: 'var(--cyber-cyan)'}} />
+              <h3 className="font-bold mb-2 text-lg">Real-time Events</h3>
+              <p className="text-sm text-gray-400">Live EDM event data from EDMTrain API with enriched genres</p>
+            </div>
+            <div className="cyber-card p-6 text-center">
+              <Calendar className="w-10 h-10 mx-auto mb-4" style={{color: 'var(--cyber-neon-green)'}} />
+              <h3 className="font-bold mb-2 text-lg">Smart Tracking</h3>
+              <p className="text-sm text-gray-400">Track attendance and build your personal rave history</p>
+            </div>
           </div>
         </div>
       </main>

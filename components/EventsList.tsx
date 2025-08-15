@@ -8,8 +8,9 @@ interface Event {
   id: string;
   name: string;
   date: string;
-  startTime: string;
-  endTime: string;
+  startTime: string | null;
+  endTime: string | null;
+  isTimeEstimated?: boolean;
   venue: {
     name: string;
     address: string;
@@ -45,7 +46,19 @@ export default function EventsList({ events, edmGenres = [], recommendedEventIds
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString + 'T00:00:00'); // Ensure consistent parsing
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Check if it's today or tomorrow
+    if (date.toDateString() === today.toDateString()) {
+      return 'Tonight';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    }
+    
+    // Otherwise show day and date
     return date.toLocaleDateString('en-US', { 
       weekday: 'short', 
       month: 'short', 
@@ -53,12 +66,12 @@ export default function EventsList({ events, edmGenres = [], recommendedEventIds
     });
   };
 
-  const formatTime = (time: string) => {
-    if (!time) return '';
+  const formatTime = (time: string | null) => {
+    if (!time || time === 'TBA') return 'Time TBA';
     const [hours, minutes] = time.split(':');
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
+    const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
@@ -163,14 +176,24 @@ export default function EventsList({ events, edmGenres = [], recommendedEventIds
                     {/* Genres */}
                     {event.genres && event.genres.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {event.genres.slice(0, 3).map((genre, idx) => (
-                          <span key={idx} className="cyber-badge text-xs">
+                        {event.genres.slice(0, 4).map((genre, idx) => (
+                          <span 
+                            key={idx} 
+                            className={`cyber-badge text-xs ${
+                              genre.toLowerCase().includes('house') ? 'bg-purple-900/30 border-purple-500/50' :
+                              genre.toLowerCase().includes('techno') ? 'bg-blue-900/30 border-blue-500/50' :
+                              genre.toLowerCase().includes('bass') || genre.toLowerCase().includes('dubstep') ? 'bg-green-900/30 border-green-500/50' :
+                              genre.toLowerCase().includes('trance') ? 'bg-pink-900/30 border-pink-500/50' :
+                              genre.toLowerCase().includes('drum') ? 'bg-orange-900/30 border-orange-500/50' :
+                              ''
+                            }`}
+                          >
                             {genre}
                           </span>
                         ))}
-                        {event.genres.length > 3 && (
-                          <span className="cyber-badge text-xs">
-                            +{event.genres.length - 3} more
+                        {event.genres.length > 4 && (
+                          <span className="cyber-badge text-xs opacity-60">
+                            +{event.genres.length - 4}
                           </span>
                         )}
                       </div>
@@ -185,7 +208,7 @@ export default function EventsList({ events, edmGenres = [], recommendedEventIds
                         </div>
                         <span className="cyber-text-muted">
                           {formatTime(event.startTime)}
-                          {event.endTime && ` - ${formatTime(event.endTime)}`}
+                          {event.endTime && event.startTime && ` - ${formatTime(event.endTime)}`}
                         </span>
                       </div>
                       
