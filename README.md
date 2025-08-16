@@ -4,13 +4,17 @@ Real-time EDM event discovery platform powered by AI and your Spotify music tast
 
 ## 🚀 Features
 
-- 🎵 **Spotify Integration**: Analyzes your listening patterns and favorite artists
-- 📍 **Real-Time Events**: Live EDM event data from EDMTrain API
-- 🎯 **Smart Genre Detection**: Identifies 40+ EDM sub-genres (Tech House, Melodic Dubstep, Drum & Bass, etc.)
-- 🗺️ **Interactive Map**: Visual event locations with clustering
-- 🎨 **Cyberpunk UI**: Neon-themed interface with matrix rain effects
+- 🎵 **Spotify Integration**: Analyzes your listening patterns and favorite artists for personalized recommendations
+- 📍 **Real-Time Events**: Live EDM event data from EDMTrain API with automatic location detection
+- 🎯 **Smart Recommendations**: AI-powered event suggestions based on your music taste
+- 🗺️ **Interactive GEO_MAP**: Visual event locations with time filters and recommendation highlights
+- 💜 **Priority List**: Save and track events you want to attend with map visualization
+- 📊 **Archived Data**: Track past events with ratings, DJ rankings, and statistics
+- 🎨 **Cyberpunk UI**: Neon-themed interface with matrix rain effects and glitch animations
 - ⚡ **Performance Optimized**: Built with Next.js 15 Turbopack, includes response caching
 - 📱 **Responsive Design**: Works seamlessly on desktop and mobile
+- 🏷️ **Smart Labeling**: Events without titles automatically show artist names
+- 🖼️ **Fallback Images**: Generic EDM images for events without artwork
 
 ## 🛠️ Tech Stack
 
@@ -83,15 +87,20 @@ ravepulse/
 │   │   ├── events/        # EDMTrain event fetching
 │   │   └── spotify/       # Artist data & genres
 │   ├── dashboard/         # Main dashboard with events
+│   ├── wishlist/          # Priority list page
+│   ├── past-events/       # Archived events & DJ rankings
 │   ├── auth/success/      # Post-auth redirect
 │   └── page.tsx          # Landing page
 ├── components/            # React components
 │   ├── EventsList.tsx    # Event cards display
 │   ├── EventModal.tsx    # Event details modal
-│   └── MapView.tsx       # Interactive map
+│   ├── EventsMap.tsx     # Enhanced GEO_MAP with filters
+│   └── MapView.tsx       # Priority list map visualization
 ├── lib/                   # Core utilities
 │   ├── spotify.ts        # Spotify API client
 │   ├── edmtrain.ts       # EDMTrain API integration
+│   ├── attendance.ts     # Event attendance tracking
+│   ├── wishlist.ts       # Priority list management
 │   ├── cache.ts          # Response caching
 │   └── types.ts          # TypeScript types
 └── public/               # Static assets
@@ -99,10 +108,32 @@ ravepulse/
 
 ## 🎨 Features in Detail
 
+### Smart Recommendations
+- **Personalized Matching**: Events are recommended based on your Spotify listening history
+- **Artist Recognition**: Direct matches with artists you've listened to
+- **Genre Analysis**: Intelligent matching of EDM sub-genres from your music taste
+- **Visual Indicators**: Purple pins for recommended events, green for others
+- **Sorting**: Recommended events appear first in chronological order
+
+### Interactive GEO_MAP
+- **Time Filters**: View events for today, this week, next week, or this month
+- **Recommendation Filter**: Toggle to show only recommended events
+- **Event Labels**: Shows event names and venues directly on the map (recommended only)
+- **Color Coding**: Purple for recommended, green for regular events
+- **Popup Details**: Click markers for full event information
+
+### Priority List & Archive
+- **Priority List**: Save events you want to attend with dedicated map view
+- **Event Archive**: Track all attended events with ratings and notes
+- **DJ Rankings**: See your most-seen artists with play counts
+- **Statistics Dashboard**: View total events, unique venues, top genres, and average ratings
+- **Date Organization**: Events grouped by date for easy browsing
+
 ### EDMTrain Integration
 - Real-time event data with preserved event links (per API Terms)
 - Location-based event discovery
 - Automatic nearest city detection
+- Smart title handling (replaces generic titles with artist names)
 
 ### Genre Enrichment
 The app identifies and categorizes 40+ EDM sub-genres including:
@@ -114,9 +145,10 @@ The app identifies and categorizes 40+ EDM sub-genres including:
 
 ### Performance Optimizations
 - 10-minute API response caching
-- Optimized image loading with Next.js Image
+- Optimized image loading with fallback support
 - Turbopack for faster development builds
 - Package import optimizations
+- LocalStorage for instant data access
 
 ## 🚀 Scripts
 
