@@ -33,10 +33,21 @@ export const getAuthorizationUrl = () => {
 };
 
 export const getAccessToken = async (code: string) => {
+  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REDIRECT_URI) {
+    console.error('Missing environment variables:', {
+      clientId: !!SPOTIFY_CLIENT_ID,
+      clientSecret: !!SPOTIFY_CLIENT_SECRET, 
+      redirectUri: !!SPOTIFY_REDIRECT_URI
+    });
+    throw new Error('Missing Spotify environment variables');
+  }
+
+  const currentBasic = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
+  
   const response = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${basic}`,
+      Authorization: `Basic ${currentBasic}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
@@ -45,6 +56,12 @@ export const getAccessToken = async (code: string) => {
       redirect_uri: SPOTIFY_REDIRECT_URI,
     }),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Spotify token error:', errorText);
+    throw new Error(`Spotify API error: ${response.status}`);
+  }
 
   return response.json();
 };
@@ -101,6 +118,12 @@ export const getUserProfile = async (access_token: string) => {
       Authorization: `Bearer ${access_token}`,
     },
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Spotify profile error:', errorText);
+    throw new Error(`Spotify API error: ${response.status}`);
+  }
 
   return response.json();
 };

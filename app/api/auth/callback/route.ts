@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
     const tokenData = await getAccessToken(code);
     
     if (tokenData.error) {
+      console.error('Token error:', tokenData);
       throw new Error(tokenData.error_description || 'Failed to get access token');
+    }
+
+    if (!tokenData.access_token) {
+      console.error('No access token in response:', tokenData);
+      throw new Error('No access token received from Spotify');
     }
 
     // Get user profile from Spotify
