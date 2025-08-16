@@ -343,22 +343,6 @@ export default function Dashboard() {
               </h3>
               <div className="space-y-2">
                 <button 
-                  onClick={() => {
-                    setFilterThisWeek(!filterThisWeek);
-                    toast.success(filterThisWeek ? 'Showing all events' : 'Showing this week only');
-                  }}
-                  className={`w-full text-left px-4 py-2 cyber-border transition-all transform hover:scale-105 flex items-center gap-2 font-mono ${
-                    filterThisWeek ? 'cyber-hologram bg-cyan-500/20' : 'hover:bg-gray-800/50'
-                  }`}
-                  style={{
-                    color: filterThisWeek ? 'var(--cyber-cyan)' : 'var(--cyber-magenta)',
-                    clipPath: 'polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%)'
-                  }}
-                >
-                  <Calendar className="w-4 h-4" />
-                  THIS_CYCLE
-                </button>
-                <button 
                   onClick={() => router.push('/wishlist')}
                   className="w-full text-left px-4 py-2 cyber-border hover:bg-gray-800/50 transition-all transform hover:scale-105 flex items-center gap-2 font-mono"
                   style={{

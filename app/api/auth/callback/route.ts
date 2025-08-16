@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user profile from Spotify
+    console.log('Attempting to get user profile with access token...');
     const userProfile = await getUserProfile(tokenData.access_token);
+    console.log('User profile retrieved successfully:', userProfile.email);
 
     // Store tokens in cookies (in production, use secure session management)
     const cookieStore = await cookies();

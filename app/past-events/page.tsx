@@ -3,13 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Archive, Calendar, MapPin, Music, Star, ExternalLink, Users, Trophy, BarChart3, Clock } from 'lucide-react';
-import { Event } from '@/lib/types';
+import { EDMEvent } from '@/lib/types';
 import EventModal from '@/components/EventModal';
 import toast from 'react-hot-toast';
 
-interface EventWithRating extends Event {
-  rating?: number;
+interface EventWithRating extends EDMEvent {
+  djRatings?: Record<string, number>; // DJ name -> rating
+  venueRating?: number;
   notes?: string;
+  image?: string; // Add missing image property
+  link?: string; // Add missing link property
 }
 
 // Generic EDM event image fallback
@@ -19,21 +22,29 @@ interface DJRanking {
   name: string;
   count: number;
   lastSeen: string;
+  avgRating: number;
+}
+
+interface VenueRanking {
+  name: string;
+  count: number;
+  lastSeen: string;
+  avgRating: number;
 }
 
 export default function PastEventsPage() {
   const [pastEvents, setPastEvents] = useState<EventWithRating[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<EDMEvent | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'events' | 'djs'>('events');
+  const [viewMode, setViewMode] = useState<'events' | 'djs' | 'venues'>('events');
   const [djRankings, setDjRankings] = useState<DJRanking[]>([]);
+  const [venueRankings, setVenueRankings] = useState<VenueRanking[]>([]);
   const [stats, setStats] = useState({
     totalEvents: 0,
     uniqueVenues: 0,
     uniqueArtists: 0,
-    topGenre: '',
-    avgRating: 0
+    topGenre: ''
   });
 
   useEffect(() => {
@@ -42,8 +53,8 @@ export default function PastEventsPage() {
 
   const loadPastEvents = () => {
     try {
-      // Load events with ratings
-      const ratingsData = localStorage.getItem('eventRatings');
+      // Load events with ratings (new structure: DJ and venue ratings)
+      const ratingsData = localStorage.getItem('eventDetailedRatings');
       const ratings = ratingsData ? JSON.parse(ratingsData) : {};
       
       // Load full event data
@@ -51,10 +62,13 @@ export default function PastEventsPage() {
       let events: EventWithRating[] = [];
       
       if (fullEvents) {
-        events = JSON.parse(fullEvents).map((e: Event) => ({
+        events = JSON.parse(fullEvents).map((e: EDMEvent) => ({
           ...e,
-          rating: ratings[e.id]?.rating || 0,
-          notes: ratings[e.id]?.notes || ''
+          djRatings: ratings[e.id]?.djRatings || {},
+          venueRating: ratings[e.id]?.venueRating || 0,
+          notes: ratings[e.id]?.notes || '',
+          image: e.imageUrl, // Map imageUrl to image
+          link: e.ticketLink // Map ticketLink to link
         }));
       } else {
         // Fallback to basic data
@@ -67,7 +81,8 @@ export default function PastEventsPage() {
             date: item.date,
             venue: { name: item.venueName },
             artists: item.artists.map((name: string) => ({ name })),
-            rating: ratings[item.eventId]?.rating || 0,
+            djRatings: ratings[item.eventId]?.djRatings || {},
+            venueRating: ratings[item.eventId]?.venueRating || 0,
             notes: ratings[item.eventId]?.notes || ''
           }));
         }
@@ -92,48 +107,88 @@ export default function PastEventsPage() {
       const topGenre = Object.entries(genreCounts)
         .sort(([,a], [,b]) => b - a)[0]?.[0] || 'Electronic';
       
-      // Calculate average rating
-      const ratedEvents = events.filter(e => e.rating && e.rating > 0);
-      const avgRating = ratedEvents.length > 0 
-        ? ratedEvents.reduce((sum, e) => sum + (e.rating || 0), 0) / ratedEvents.length
-        : 0;
-      
       setStats({
         totalEvents: events.length,
         uniqueVenues: venues.size,
         uniqueArtists: artists.size,
-        topGenre,
-        avgRating
+        topGenre
       });
       
-      // Calculate DJ rankings
-      const djCount: Record<string, { count: number; lastSeen: string }> = {};
+      // Calculate DJ rankings with ratings
+      const djData: Record<string, { count: number; lastSeen: string; ratings: number[] }> = {};
       events.forEach((event: EventWithRating) => {
         event.artists?.forEach(artist => {
-          if (!djCount[artist.name]) {
-            djCount[artist.name] = { count: 0, lastSeen: event.date };
+          if (!djData[artist.name]) {
+            djData[artist.name] = { count: 0, lastSeen: event.date, ratings: [] };
           }
-          djCount[artist.name].count++;
+          djData[artist.name].count++;
+          
+          // Add rating if exists
+          const djRating = event.djRatings?.[artist.name];
+          if (djRating && djRating > 0) {
+            djData[artist.name].ratings.push(djRating);
+          }
+          
           // Parse dates properly to avoid timezone issues
           const [eventYear, eventMonth, eventDay] = event.date.split('-').map(num => parseInt(num));
-          const [lastYear, lastMonth, lastDay] = djCount[artist.name].lastSeen.split('-').map(num => parseInt(num));
+          const [lastYear, lastMonth, lastDay] = djData[artist.name].lastSeen.split('-').map(num => parseInt(num));
           const eventDate = new Date(eventYear, eventMonth - 1, eventDay);
           const lastSeenDate = new Date(lastYear, lastMonth - 1, lastDay);
           if (eventDate > lastSeenDate) {
-            djCount[artist.name].lastSeen = event.date;
+            djData[artist.name].lastSeen = event.date;
           }
         });
       });
       
-      const rankings = Object.entries(djCount)
+      const djRankings = Object.entries(djData)
         .map(([name, data]) => ({
           name,
           count: data.count,
-          lastSeen: data.lastSeen
+          lastSeen: data.lastSeen,
+          avgRating: data.ratings.length > 0 
+            ? data.ratings.reduce((sum, rating) => sum + rating, 0) / data.ratings.length 
+            : 0
         }))
         .sort((a, b) => b.count - a.count);
       
-      setDjRankings(rankings);
+      setDjRankings(djRankings);
+      
+      // Calculate Venue rankings with ratings
+      const venueData: Record<string, { count: number; lastSeen: string; ratings: number[] }> = {};
+      events.forEach((event: EventWithRating) => {
+        const venueName = event.venue.name;
+        if (!venueData[venueName]) {
+          venueData[venueName] = { count: 0, lastSeen: event.date, ratings: [] };
+        }
+        venueData[venueName].count++;
+        
+        // Add rating if exists
+        if (event.venueRating && event.venueRating > 0) {
+          venueData[venueName].ratings.push(event.venueRating);
+        }
+        
+        // Update last seen date
+        const [eventYear, eventMonth, eventDay] = event.date.split('-').map(num => parseInt(num));
+        const [lastYear, lastMonth, lastDay] = venueData[venueName].lastSeen.split('-').map(num => parseInt(num));
+        const eventDate = new Date(eventYear, eventMonth - 1, eventDay);
+        const lastSeenDate = new Date(lastYear, lastMonth - 1, lastDay);
+        if (eventDate > lastSeenDate) {
+          venueData[venueName].lastSeen = event.date;
+        }
+      });
+      
+      const venueRankings = Object.entries(venueData)
+        .map(([name, data]) => ({
+          name,
+          count: data.count,
+          lastSeen: data.lastSeen,
+          avgRating: data.ratings.length > 0 
+            ? data.ratings.reduce((sum, rating) => sum + rating, 0) / data.ratings.length 
+            : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+      
+      setVenueRankings(venueRankings);
     } catch (error) {
       console.error('Error loading past events:', error);
     } finally {
@@ -146,30 +201,42 @@ export default function PastEventsPage() {
     setIsModalOpen(true);
   };
 
-  const handleRatingChange = (eventId: string, rating: number) => {
-    // Update rating in localStorage
-    const ratingsData = localStorage.getItem('eventRatings');
+  const handleDJRatingChange = (eventId: string, djName: string, rating: number) => {
+    // Update DJ rating in localStorage
+    const ratingsData = localStorage.getItem('eventDetailedRatings');
     const ratings = ratingsData ? JSON.parse(ratingsData) : {};
-    ratings[eventId] = { ...ratings[eventId], rating };
-    localStorage.setItem('eventRatings', JSON.stringify(ratings));
+    if (!ratings[eventId]) ratings[eventId] = {};
+    if (!ratings[eventId].djRatings) ratings[eventId].djRatings = {};
+    ratings[eventId].djRatings[djName] = rating;
+    localStorage.setItem('eventDetailedRatings', JSON.stringify(ratings));
     
     // Update local state
     setPastEvents(prev => prev.map(e => 
-      e.id === eventId ? { ...e, rating } : e
+      e.id === eventId ? { 
+        ...e, 
+        djRatings: { ...e.djRatings, [djName]: rating }
+      } : e
     ));
     
-    // Recalculate average rating
-    const updatedEvents = pastEvents.map(e => 
-      e.id === eventId ? { ...e, rating } : e
-    );
-    const ratedEvents = updatedEvents.filter(e => e.rating && e.rating > 0);
-    const avgRating = ratedEvents.length > 0 
-      ? ratedEvents.reduce((sum, e) => sum + (e.rating || 0), 0) / ratedEvents.length
-      : 0;
+    loadPastEvents(); // Recalculate rankings
+    toast.success(`DJ ${djName} rated!`);
+  };
+
+  const handleVenueRatingChange = (eventId: string, rating: number) => {
+    // Update venue rating in localStorage
+    const ratingsData = localStorage.getItem('eventDetailedRatings');
+    const ratings = ratingsData ? JSON.parse(ratingsData) : {};
+    if (!ratings[eventId]) ratings[eventId] = {};
+    ratings[eventId].venueRating = rating;
+    localStorage.setItem('eventDetailedRatings', JSON.stringify(ratings));
     
-    setStats(prev => ({ ...prev, avgRating }));
+    // Update local state
+    setPastEvents(prev => prev.map(e => 
+      e.id === eventId ? { ...e, venueRating: rating } : e
+    ));
     
-    toast.success('Rating updated!');
+    loadPastEvents(); // Recalculate rankings
+    toast.success('Venue rated!');
   };
 
   const formatDate = (dateString: string) => {
@@ -255,7 +322,17 @@ export default function PastEventsPage() {
                       : 'hover:bg-white/10 text-gray-400'
                   }`}
                 >
-                  DJ RANKINGS
+                  DJs
+                </button>
+                <button
+                  onClick={() => setViewMode('venues')}
+                  className={`px-3 py-2 font-mono text-xs transition-all ${
+                    viewMode === 'venues' 
+                      ? 'bg-gradient-to-r from-green-500/20 to-cyan-500/20 text-white' 
+                      : 'hover:bg-white/10 text-gray-400'
+                  }`}
+                >
+                  VENUES
                 </button>
               </div>
             </div>
@@ -266,7 +343,7 @@ export default function PastEventsPage() {
       {/* Stats Section */}
       {pastEvents.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="cyber-card p-4 text-center">
               <div className="text-2xl font-bold cyber-neon font-mono" style={{color: 'var(--cyber-cyan)'}}>
                 {stats.totalEvents}
@@ -290,12 +367,6 @@ export default function PastEventsPage() {
                 {stats.topGenre}
               </div>
               <div className="text-xs text-gray-400 font-mono">TOP GENRE</div>
-            </div>
-            <div className="cyber-card p-4 text-center">
-              <div className="text-2xl font-bold cyber-neon font-mono" style={{color: 'var(--cyber-magenta)'}}>
-                {stats.avgRating.toFixed(1)}★
-              </div>
-              <div className="text-xs text-gray-400 font-mono">AVG RATING</div>
             </div>
           </div>
         </div>
@@ -340,6 +411,7 @@ export default function PastEventsPage() {
                     <th className="text-left py-3 px-2" style={{color: 'var(--cyber-cyan)'}}>RANK</th>
                     <th className="text-left py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>ARTIST</th>
                     <th className="text-center py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>TIMES SEEN</th>
+                    <th className="text-center py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>AVG RATING</th>
                     <th className="text-right py-3 px-2" style={{color: 'var(--cyber-cyan)'}}>LAST SEEN</th>
                   </tr>
                 </thead>
@@ -364,6 +436,16 @@ export default function PastEventsPage() {
                           <BarChart3 className="w-4 h-4 opacity-50" />
                         </span>
                       </td>
+                      <td className="py-3 px-4 text-center">
+                        {dj.avgRating > 0 ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Star className="w-3 h-3" style={{color: 'var(--cyber-yellow)', fill: 'var(--cyber-yellow)'}} />
+                            <span style={{color: 'var(--cyber-yellow)'}}>{dj.avgRating.toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
+                      </td>
                       <td className="py-3 px-2 text-right text-gray-400">
                         {formatDate(dj.lastSeen)}
                       </td>
@@ -375,6 +457,72 @@ export default function PastEventsPage() {
               {djRankings.length > 20 && (
                 <div className="text-center py-4 text-gray-500 font-mono text-sm">
                   And {djRankings.length - 20} more artists...
+                </div>
+              )}
+            </div>
+          </div>
+        ) : viewMode === 'venues' ? (
+          <div className="cyber-card p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <MapPin className="w-6 h-6" style={{color: 'var(--cyber-hot-pink)'}} />
+              <h2 className="text-xl font-bold font-mono" style={{color: 'var(--cyber-hot-pink)'}}>
+                VENUE RANKINGS - TOP VENUES VISITED
+              </h2>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full font-mono text-sm">
+                <thead>
+                  <tr className="border-b" style={{borderColor: 'var(--cyber-cyan)'}}>
+                    <th className="text-left py-3 px-2" style={{color: 'var(--cyber-cyan)'}}>RANK</th>
+                    <th className="text-left py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>VENUE</th>
+                    <th className="text-center py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>EVENTS</th>
+                    <th className="text-center py-3 px-4" style={{color: 'var(--cyber-cyan)'}}>AVG RATING</th>
+                    <th className="text-right py-3 px-2" style={{color: 'var(--cyber-cyan)'}}>LAST VISIT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {venueRankings.slice(0, 20).map((venue, idx) => (
+                    <tr 
+                      key={venue.name} 
+                      className="border-b border-gray-800 hover:bg-white/5 transition-colors"
+                    >
+                      <td className="py-3 px-2">
+                        {idx === 0 && <span style={{color: 'var(--cyber-yellow)'}}>🥇</span>}
+                        {idx === 1 && <span style={{color: 'var(--cyber-gray)'}}>🥈</span>}
+                        {idx === 2 && <span style={{color: 'var(--cyber-orange)'}}>🥉</span>}
+                        {idx > 2 && <span className="text-gray-500">#{idx + 1}</span>}
+                      </td>
+                      <td className="py-3 px-4 font-bold" style={{color: idx < 3 ? 'var(--cyber-hot-pink)' : 'white'}}>
+                        {venue.name}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center gap-2">
+                          <span>{venue.count}</span>
+                          <BarChart3 className="w-4 h-4 opacity-50" />
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {venue.avgRating > 0 ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Star className="w-3 h-3" style={{color: 'var(--cyber-yellow)', fill: 'var(--cyber-yellow)'}} />
+                            <span style={{color: 'var(--cyber-yellow)'}}>{venue.avgRating.toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right text-gray-400">
+                        {formatDate(venue.lastSeen)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {venueRankings.length > 20 && (
+                <div className="text-center py-4 text-gray-500 font-mono text-sm">
+                  And {venueRankings.length - 20} more venues...
                 </div>
               )}
             </div>
@@ -465,31 +613,67 @@ export default function PastEventsPage() {
                             )}
                           </div>
                           
-                          {/* Rating */}
-                          <div className="mt-3 flex items-center gap-2">
+                          {/* DJ Ratings */}
+                          {event.artists && event.artists.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <div className="text-xs font-mono text-gray-400">DJ RATINGS:</div>
+                              {event.artists.slice(0, 3).map((artist) => (
+                                <div key={artist.name} className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-mono text-gray-300 truncate">{artist.name}</span>
+                                  <div className="flex items-center gap-1">
+                                    {[...Array(5)].map((_, i) => (
+                                      <button
+                                        key={i} 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDJRatingChange(event.id, artist.name, i + 1);
+                                        }}
+                                        className="hover:scale-110 transition-transform"
+                                      >
+                                        <Star 
+                                          className="w-3 h-3" 
+                                          style={{
+                                            color: i < (event.djRatings?.[artist.name] || 0) ? 'var(--cyber-yellow)' : 'var(--cyber-gray)',
+                                            fill: i < (event.djRatings?.[artist.name] || 0) ? 'var(--cyber-yellow)' : 'none'
+                                          }}
+                                        />
+                                      </button>
+                                    ))}
+                                    <span className="text-xs text-gray-500 ml-1">
+                                      {event.djRatings?.[artist.name] || '—'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Venue Rating */}
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <span className="text-xs font-mono text-gray-400">VENUE RATING:</span>
                             <div className="flex items-center gap-1">
                               {[...Array(5)].map((_, i) => (
                                 <button
                                   key={i} 
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleRatingChange(event.id, i + 1);
+                                    handleVenueRatingChange(event.id, i + 1);
                                   }}
                                   className="hover:scale-110 transition-transform"
                                 >
                                   <Star 
-                                    className="w-4 h-4" 
+                                    className="w-3 h-3" 
                                     style={{
-                                      color: i < (event.rating || 0) ? 'var(--cyber-yellow)' : 'var(--cyber-gray)',
-                                      fill: i < (event.rating || 0) ? 'var(--cyber-yellow)' : 'none'
+                                      color: i < (event.venueRating || 0) ? 'var(--cyber-yellow)' : 'var(--cyber-gray)',
+                                      fill: i < (event.venueRating || 0) ? 'var(--cyber-yellow)' : 'none'
                                     }}
                                   />
                                 </button>
                               ))}
+                              <span className="text-xs text-gray-500 ml-1">
+                                {event.venueRating || '—'}
+                              </span>
                             </div>
-                            <span className="text-xs text-gray-400 font-mono">
-                              {event.rating ? `${event.rating}/5` : 'Rate this event'}
-                            </span>
                           </div>
                         </div>
                         
@@ -517,7 +701,21 @@ export default function PastEventsPage() {
 
       {/* Event Modal */}
       <EventModal
-        event={selectedEvent}
+        event={selectedEvent ? {
+          ...selectedEvent,
+          ages: '18+', // Default ages
+          festivalInd: false,
+          electronicGenreInd: true,
+          otherGenreInd: false,
+          link: selectedEvent.ticketLink || '#',
+          ticketLink: selectedEvent.ticketLink || '#',
+          image: selectedEvent.imageUrl,
+          endTime: selectedEvent.endTime || null,
+          venue: {
+            ...selectedEvent.venue,
+            address: selectedEvent.venue.location || ''
+          }
+        } : null}
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
