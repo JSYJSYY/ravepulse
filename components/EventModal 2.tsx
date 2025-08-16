@@ -7,15 +7,12 @@ import toast from 'react-hot-toast';
 import { markEventAsAttended, unmarkEventAsAttended, isEventAttended } from '@/lib/attendance';
 import { addToWishlist, removeFromWishlist, isInWishlist } from '@/lib/wishlist';
 
-// Generic EDM event image fallback
-const GENERIC_EDM_IMAGE = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&h=400&fit=crop&q=80';
-
 interface Event {
   id: string;
   name: string;
   date: string;
-  startTime: string | null;
-  endTime: string | null;
+  startTime: string;
+  endTime: string;
   venue: {
     name: string;
     address: string;
@@ -105,10 +102,7 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
   if (!mounted || !isOpen || !event) return null;
 
   const formatDate = (dateString: string) => {
-    // Parse the date string as local date, not UTC
-    // Split the date string to avoid timezone issues
-    const [year, month, day] = dateString.split('-').map(num => parseInt(num));
-    const date = new Date(year, month - 1, day); // month is 0-indexed
+    const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
       weekday: 'short', 
       month: 'short', 
@@ -116,12 +110,12 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
     });
   };
 
-  const formatTime = (time: string | null) => {
+  const formatTime = (time: string) => {
     if (!time) return '';
     const [hours, minutes] = time.split(':');
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
@@ -148,26 +142,10 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
       unmarkEventAsAttended(event.id);
       setIsAttended(false);
       toast.success('Removed from attended events');
-      
-      // Update full events storage
-      const fullEvents = localStorage.getItem('attendedEventsFull');
-      if (fullEvents) {
-        const parsed = JSON.parse(fullEvents);
-        const filtered = parsed.filter((e: any) => e.id !== event.id);
-        localStorage.setItem('attendedEventsFull', JSON.stringify(filtered));
-      }
     } else {
       markEventAsAttended(event);
       setIsAttended(true);
       toast.success('Marked as attended!');
-      
-      // Save full event data for the archive page
-      const fullEvents = localStorage.getItem('attendedEventsFull');
-      const existing = fullEvents ? JSON.parse(fullEvents) : [];
-      if (!existing.find((e: any) => e.id === event.id)) {
-        existing.push(event);
-        localStorage.setItem('attendedEventsFull', JSON.stringify(existing));
-      }
     }
     onAttendanceChange?.();
   };
@@ -177,26 +155,10 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
       removeFromWishlist(event.id);
       setIsWishlisted(false);
       toast.success('Removed from wishlist');
-      
-      // Update full events storage
-      const fullEvents = localStorage.getItem('wishlistEventsFull');
-      if (fullEvents) {
-        const parsed = JSON.parse(fullEvents);
-        const filtered = parsed.filter((e: any) => e.id !== event.id);
-        localStorage.setItem('wishlistEventsFull', JSON.stringify(filtered));
-      }
     } else {
       addToWishlist(event);
       setIsWishlisted(true);
       toast.success('Added to wishlist!');
-      
-      // Save full event data for the wishlist page
-      const fullEvents = localStorage.getItem('wishlistEventsFull');
-      const existing = fullEvents ? JSON.parse(fullEvents) : [];
-      if (!existing.find((e: any) => e.id === event.id)) {
-        existing.push(event);
-        localStorage.setItem('wishlistEventsFull', JSON.stringify(existing));
-      }
     }
     onAttendanceChange?.();
   };
@@ -238,15 +200,13 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
       >
         {/* Header with Image */}
         <div className="relative h-48 bg-gradient-to-br from-gray-900 to-gray-800 rounded-t-lg overflow-hidden">
-          <img 
-            src={event.image || GENERIC_EDM_IMAGE} 
-            alt={event.name}
-            className="w-full h-full object-cover opacity-80"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = GENERIC_EDM_IMAGE;
-            }}
-          />
+          {event.image && (
+            <img 
+              src={event.image} 
+              alt={event.name}
+              className="w-full h-full object-cover opacity-80"
+            />
+          )}
           
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
           
@@ -261,32 +221,19 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
           
           {/* Event Title */}
           <div className="absolute bottom-0 left-0 right-0 p-6">
-            <h2 className="text-2xl font-semibold cyber-heading text-white mb-3">
-              {(() => {
-                if (event.name === 'EDM Event' || event.name === 'TBA' || !event.name) {
-                  const validArtists = event.artists?.filter(a => a.name && a.name !== 'TBA') || [];
-                  if (validArtists.length > 0) {
-                    return validArtists.slice(0, 3).map(a => a.name).join(' • ');
-                  }
-                  return `${event.venue?.name || 'Event'} - ${formatDate(event.date)}`;
-                }
-                return event.name;
-              })()}
-            </h2>
+            <h2 className="text-2xl font-semibold cyber-heading text-white mb-3">{event.name}</h2>
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-2 cyber-text-primary">
                 <Calendar className="w-4 h-4" />
                 <span>{formatDate(event.date)}</span>
               </div>
-              {formatTime(event.startTime) && (
-                <div className="flex items-center gap-2 cyber-text-muted">
-                  <Clock className="w-4 h-4" />
-                  <span>
-                    {formatTime(event.startTime)}
-                    {event.endTime && event.startTime && ` - ${formatTime(event.endTime)}`}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 cyber-text-muted">
+                <Clock className="w-4 h-4" />
+                <span>
+                  {formatTime(event.startTime)}
+                  {event.endTime && ` - ${formatTime(event.endTime)}`}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -315,17 +262,7 @@ export default function EventModal({ event, isOpen, onClose, onAttendanceChange 
                 <h3 className="text-sm font-semibold cyber-text-secondary mb-3">Genres</h3>
                 <div className="flex flex-wrap gap-2">
                   {event.genres.map((genre, idx) => (
-                    <span 
-                      key={idx} 
-                      className={`cyber-badge ${
-                        genre.toLowerCase().includes('house') ? 'bg-purple-900/30 border-purple-500/50' :
-                        genre.toLowerCase().includes('techno') ? 'bg-blue-900/30 border-blue-500/50' :
-                        genre.toLowerCase().includes('bass') || genre.toLowerCase().includes('dubstep') ? 'bg-green-900/30 border-green-500/50' :
-                        genre.toLowerCase().includes('trance') ? 'bg-pink-900/30 border-pink-500/50' :
-                        genre.toLowerCase().includes('drum') ? 'bg-orange-900/30 border-orange-500/50' :
-                        ''
-                      }`}
-                    >
+                    <span key={idx} className="cyber-badge">
                       {genre}
                     </span>
                   ))}

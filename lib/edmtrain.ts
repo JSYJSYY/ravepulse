@@ -201,9 +201,32 @@ export function formatEDMTrainEvent(event: EDMTrainEvent) {
   const city = locationParts[0] || 'Unknown City';
   const stateAbbr = locationParts[1]?.trim() || '';
   
+  // Use artist names if event name is missing or generic
+  let eventName = event.name;
+  
+  // Log to see what we're getting
+  if (!eventName || eventName.trim() === '') {
+    console.log('Event has no name, using artists:', event.artistList);
+  }
+  
+  if (!eventName || eventName.trim() === '' || eventName === 'EDM Event' || eventName === 'TBA') {
+    // Create event name from artist list
+    const artistNames = event.artistList
+      .slice(0, 3) // Take up to 3 artists
+      .map(artist => artist.name)
+      .filter(name => name && name !== 'TBA');
+    
+    if (artistNames.length > 0) {
+      eventName = artistNames.join(' • ');
+      console.log('Replaced empty/generic name with:', eventName);
+    } else {
+      eventName = 'EDM Event';
+    }
+  }
+  
   return {
     id: event.id.toString(),
-    name: event.name || 'EDM Event',
+    name: eventName,
     date: event.date,
     startTime: event.startTime || null,
     endTime: event.endTime || null,
@@ -222,7 +245,7 @@ export function formatEDMTrainEvent(event: EDMTrainEvent) {
       name: artist.name,
       b2b: artist.b2bInd,
     })),
-    genres: event.electronicGenreInd ? ['Electronic'] : ['Other'],
+    genres: [], // Genres will be populated from Spotify API
     ages: event.ages || 'All Ages',
     festivalInd: event.festivalInd,
     electronicGenreInd: event.electronicGenreInd,

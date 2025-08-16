@@ -6,10 +6,6 @@ import {
   getEDMTrainLocations 
 } from '@/lib/edmtrain';
 
-// Simple in-memory cache for events
-const eventsCache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const latitude = searchParams.get('latitude');
@@ -18,15 +14,6 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state');
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
-  
-  // Create cache key from parameters
-  const cacheKey = `${city}-${state}-${latitude}-${longitude}-${startDate}-${endDate}`;
-  
-  // Check cache first
-  const cached = eventsCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return NextResponse.json(cached.data);
-  }
   
   try {
     let locationIds: number[] = [];
@@ -91,76 +78,26 @@ export async function GET(request: NextRequest) {
         edmtrainEvents.map(async (event) => {
           const formatted = formatEDMTrainEvent(event);
           
-          // Try to enhance with Spotify data (image and genres)
+          // Try to enhance with Spotify artist image if available
           try {
-            if (event.artistList?.length > 0 && process.env.SPOTIFY_CLIENT_ID) {
+            const primaryArtist = event.artistList?.[0]?.name;
+            if (primaryArtist && process.env.SPOTIFY_CLIENT_ID) {
+              // Make internal API call to get artist image
               const baseUrl = request.nextUrl.origin;
+              const artistImageResponse = await fetch(
+                `${baseUrl}/api/spotify/artist-image?artist=${encodeURIComponent(primaryArtist)}`
+              );
               
-              // Get primary artist image
-              const primaryArtist = event.artistList[0]?.name;
-              if (primaryArtist) {
-                const artistImageResponse = await fetch(
-                  `${baseUrl}/api/spotify/artist-image?artist=${encodeURIComponent(primaryArtist)}`
-                );
-                
-                if (artistImageResponse.ok) {
-                  const artistData = await artistImageResponse.json();
-                  if (artistData.image) {
-                    formatted.image = artistData.image;
-                  }
+              if (artistImageResponse.ok) {
+                const artistData = await artistImageResponse.json();
+                if (artistData.image) {
+                  formatted.image = artistData.image;
                 }
-              }
-              
-              // Get genres for all artists
-              const artistNames = event.artistList
-                .map(a => a.name)
-                .filter(name => name && name !== 'TBA');
-              
-              if (artistNames.length > 0) {
-                const genresResponse = await fetch(`${baseUrl}/api/spotify/artist-genres`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ artists: artistNames }),
-                });
-                
-                if (genresResponse.ok) {
-                  const genresData = await genresResponse.json();
-                  if (genresData.topGenres && genresData.topGenres.length > 0) {
-                    formatted.genres = genresData.topGenres;
-                  }
-                }
-              }
-              
-              // If no genres from Spotify, provide basic categorization
-              if (!formatted.genres || formatted.genres.length === 0) {
-                // Try to infer genres from event name and artist names
-                const eventText = `${event.name} ${artistNames.join(' ')}`.toLowerCase();
-                const inferredGenres = [];
-                
-                if (eventText.includes('house') || eventText.includes('tech house')) inferredGenres.push('House');
-                if (eventText.includes('techno')) inferredGenres.push('Techno');
-                if (eventText.includes('bass') || eventText.includes('dubstep')) inferredGenres.push('Bass');
-                if (eventText.includes('trance')) inferredGenres.push('Trance');
-                if (eventText.includes('drum') || eventText.includes('dnb') || eventText.includes('d&b')) inferredGenres.push('Drum & Bass');
-                if (eventText.includes('hardstyle') || eventText.includes('hardcore')) inferredGenres.push('Hardstyle');
-                if (eventText.includes('melodic')) inferredGenres.push('Melodic');
-                if (eventText.includes('progressive')) inferredGenres.push('Progressive');
-                
-                // Default categorization based on EDMTrain flags
-                if (inferredGenres.length === 0) {
-                  if (event.electronicGenreInd) {
-                    inferredGenres.push('Electronic Dance Music');
-                  } else if (event.otherGenreInd) {
-                    inferredGenres.push('Other');
-                  }
-                }
-                
-                formatted.genres = inferredGenres;
               }
             }
           } catch (error) {
-            // Silently fail, use default data
-            console.log('Could not fetch Spotify data:', error);
+            // Silently fail, use default image
+            console.log('Could not fetch Spotify artist image:', error);
           }
           
           return formatted;
@@ -170,7 +107,7 @@ export async function GET(request: NextRequest) {
       // Sort by date
       formattedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       
-      const responseData = {
+      return NextResponse.json({
         events: formattedEvents,
         location: {
           city: formattedEvents[0]?.venue?.city || city || 'Multiple Cities',
@@ -182,15 +119,7 @@ export async function GET(request: NextRequest) {
         },
         total: formattedEvents.length,
         source: 'edmtrain',
-      };
-      
-      // Cache the response
-      eventsCache.set(cacheKey, {
-        data: responseData,
-        timestamp: Date.now(),
       });
-      
-      return NextResponse.json(responseData);
     }
     
     // If no events found, return mock data as fallback

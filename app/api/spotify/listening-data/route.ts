@@ -2,6 +2,49 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getRecentlyPlayed, getTopArtists, getTopTracks } from '@/lib/spotify';
 
+// Extract EDM-related genres from artists
+function extractEDMGenres(artists: any[]): { genre: string; count: number }[] {
+  const genreCount: Record<string, number> = {};
+  
+  artists.forEach((artist) => {
+    // Also use artist name as a genre indicator
+    if (artist.name) {
+      genreCount[artist.name] = (genreCount[artist.name] || 0) + (artist.playCount || 1);
+    }
+    
+    // Process artist genres
+    if (artist.genres && Array.isArray(artist.genres)) {
+      artist.genres.forEach((genre: string) => {
+        // Include all genres for better matching
+        genreCount[genre] = (genreCount[genre] || 0) + (artist.playCount || 1);
+        
+        // Also extract sub-genres
+        const genreLower = genre.toLowerCase();
+        if (genreLower.includes('house')) {
+          genreCount['house'] = (genreCount['house'] || 0) + 1;
+        }
+        if (genreLower.includes('techno')) {
+          genreCount['techno'] = (genreCount['techno'] || 0) + 1;
+        }
+        if (genreLower.includes('trance')) {
+          genreCount['trance'] = (genreCount['trance'] || 0) + 1;
+        }
+        if (genreLower.includes('dubstep') || genreLower.includes('bass')) {
+          genreCount['bass'] = (genreCount['bass'] || 0) + 1;
+        }
+        if (genreLower.includes('drum') || genreLower.includes('dnb')) {
+          genreCount['drum & bass'] = (genreCount['drum & bass'] || 0) + 1;
+        }
+      });
+    }
+  });
+  
+  // Convert to array and sort by count
+  return Object.entries(genreCount)
+    .map(([genre, count]) => ({ genre, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();

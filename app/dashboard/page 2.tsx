@@ -69,10 +69,7 @@ export default function Dashboard() {
       const response = await fetch('/api/spotify/listening-data');
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched listening data:', data);
         setListeningData(data);
-      } else {
-        console.error('Failed to fetch listening data:', response.status);
       }
     } catch (error) {
       console.error('Error fetching listening data:', error);
@@ -123,65 +120,41 @@ export default function Dashboard() {
     sunday.setHours(23, 59, 59, 999);
     
     return events.filter(event => {
-      // Parse date as local date to avoid timezone issues
-      const [year, month, day] = event.date.split('-').map(num => parseInt(num));
-      const eventDate = new Date(year, month - 1, day);
-      eventDate.setHours(0, 0, 0, 0);
+      const eventDate = new Date(event.date);
       return eventDate >= monday && eventDate <= sunday;
-    }).sort((a, b) => {
-      const [aYear, aMonth, aDay] = a.date.split('-').map(num => parseInt(num));
-      const [bYear, bMonth, bDay] = b.date.split('-').map(num => parseInt(num));
-      const aDate = new Date(aYear, aMonth - 1, aDay);
-      const bDate = new Date(bYear, bMonth - 1, bDay);
-      return aDate.getTime() - bDate.getTime();
-    });
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   const sortEventsByRecommendation = (eventsToSort: any[]) => {
-    // Separate recommended and non-recommended events
-    const recommendedEvents = [];
-    const otherEvents = [];
-    
-    for (const event of eventsToSort) {
-      if (getEventMatchScore(event) > 0) {
-        recommendedEvents.push(event);
-      } else {
-        otherEvents.push(event);
+    return [...eventsToSort].sort((a, b) => {
+      // Calculate match scores
+      const scoreA = getEventMatchScore(a);
+      const scoreB = getEventMatchScore(b);
+      
+      // If both have scores, sort by score (highest first)
+      if (scoreA > 0 && scoreB > 0) {
+        return scoreB - scoreA;
       }
-    }
-    
-    // Sort both groups by date (chronological order)
-    const sortByDate = (a: any, b: any) => {
-      const [aYear, aMonth, aDay] = a.date.split('-').map(num => parseInt(num));
-      const [bYear, bMonth, bDay] = b.date.split('-').map(num => parseInt(num));
-      const aDate = new Date(aYear, aMonth - 1, aDay);
-      const bDate = new Date(bYear, bMonth - 1, bDay);
-      return aDate.getTime() - bDate.getTime();
-    };
-    
-    recommendedEvents.sort(sortByDate);
-    otherEvents.sort(sortByDate);
-    
-    // Return recommended events first, then others
-    return [...recommendedEvents, ...otherEvents];
+      
+      // If only one has a score, it comes first
+      if (scoreA > 0) return -1;
+      if (scoreB > 0) return 1;
+      
+      // Otherwise sort by date (earliest first)
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
   };
 
   const getEventMatchScore = (event: any) => {
-    if (!listeningData?.edmGenres?.recentlyPlayed?.length) {
-      return 0;
-    }
-    if (!event || !event.name) return 0;
+    if (!listeningData?.edmGenres?.recentlyPlayed?.length) return 0;
     
     let score = 0;
-    const eventName = (event.name || '').toLowerCase();
-    const eventArtists = (event.artists || []).map((a: any) => (a.name || '').toLowerCase());
-    const artistNames = eventArtists.join(' ');
-    const eventGenres = (event.genres || []).map((g: string) => (g || '').toLowerCase()).join(' ');
+    const eventName = event.name.toLowerCase();
+    const artistNames = event.artists.map((a: any) => a.name.toLowerCase()).join(' ');
+    const eventGenres = (event.genres || []).map((g: string) => g.toLowerCase()).join(' ');
     
-    
-    // More precise matching - check for exact matches first
+    // More precise matching - check for exact genre matches first
     listeningData.edmGenres.recentlyPlayed.forEach(({ genre, count }: any) => {
-      if (!genre) return;
       const userGenre = genre.toLowerCase();
       
       // Check for exact genre match in event genres
@@ -190,43 +163,21 @@ export default function Dashboard() {
         return;
       }
       
-      // Check for exact artist name match (case-insensitive)
-      const matchedArtist = eventArtists.some(artist => 
-        artist === userGenre || 
-        artist.includes(userGenre) || 
-        userGenre.includes(artist)
-      );
-      if (matchedArtist) {
-        score += count * 3; // Triple weight for exact artist match
+      // Check for artist name match
+      if (artistNames.includes(userGenre)) {
+        score += count * 1.5; // 1.5x weight for artist match
         return;
       }
       
-      // Check for partial artist name match in event name or artist list
-      if (eventName.includes(userGenre) || artistNames.includes(userGenre)) {
-        score += count * 1.5; // 1.5x weight for partial match
-        return;
-      }
+      // Only do partial matching for specific genre keywords, not common words
+      const significantKeywords = ['house', 'techno', 'trance', 'dubstep', 'bass', 'drum', 'trap', 'hardstyle', 'progressive', 'deep', 'future'];
+      const genreWords = userGenre.split(' ').filter(word => significantKeywords.includes(word));
       
-      // Genre keyword matching - expand the list and be more flexible
-      const significantKeywords = [
-        'house', 'techno', 'trance', 'dubstep', 'bass', 'drum', 'trap', 
-        'hardstyle', 'progressive', 'deep', 'future', 'tech', 'melodic',
-        'minimal', 'acid', 'breaks', 'garage', 'jungle', 'hardcore'
-      ];
-      
-      // Check if user genre contains any keywords
-      significantKeywords.forEach(keyword => {
-        if (userGenre.includes(keyword) && (eventGenres.includes(keyword) || eventName.includes(keyword))) {
-          score += count * 0.8; // Weight for keyword match
+      genreWords.forEach((keyword: string) => {
+        if (keyword.length > 3 && eventGenres.includes(keyword)) {
+          score += count * 0.5; // Half weight for partial keyword match
         }
       });
-      
-      // Also check for EDM, electronic, dance as generic matches
-      if (userGenre.includes('edm') || userGenre.includes('electronic') || userGenre.includes('dance')) {
-        if (event.electronicGenreInd) {
-          score += count * 0.3; // Small weight for generic EDM match
-        }
-      }
     });
     
     // Only recommend if score is above a threshold
@@ -461,7 +412,7 @@ export default function Dashboard() {
                 events={displayedEvents}
                 onAttendanceChange={loadAttendanceStats}
                 center={(() => {
-                  const cityCoords: Record<string, { lat: number; lng: number }> = {
+                  const cityCoords = {
                     'San Francisco': { lat: 37.7749, lng: -122.4194 },
                     'Los Angeles': { lat: 34.0522, lng: -118.2437 },
                     'New York': { lat: 40.7128, lng: -74.0060 },
