@@ -78,14 +78,15 @@ export default function Home() {
               pulseAnimation ? 'cyber-neon' : ''
             }`}
             style={{
-              background: 'var(--cyber-gradient-1)',
-              color: 'black',
+              background: 'linear-gradient(135deg, #00FFFF, #FF69B4)',
+              color: '#000000',
+              textShadow: '0 0 2px rgba(255,255,255,0.5)',
               clipPath: 'polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%)'
             }}
           >
-            <Zap className="w-6 h-6" />
-            <span className="relative z-10">INITIALIZE PULSE LINK</span>
-            <Shield className="w-6 h-6" />
+            <Zap className="w-6 h-6" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.5))' }} />
+            <span className="relative z-10" style={{ fontWeight: 900 }}>INITIALIZE PULSE LINK</span>
+            <Shield className="w-6 h-6" style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.5))' }} />
           </Link>
 
           {/* Features */}
